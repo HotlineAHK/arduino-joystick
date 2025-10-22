@@ -7,7 +7,7 @@ from datetime import datetime
 
 # === НАСТРОЙКИ ===
 BAUD_RATE = 115200
-KEY_DELAY = 0.005  # КРИТИЧЕСКО ВАЖНО: 5 мс вместо 20
+KEY_DELAY = 0.005  # 5 мс — минимальная задержка для плавности
 # ----------------
 
 # Windows API константы
@@ -24,166 +24,157 @@ VK_CODES = {
     ' ': 0x20   # Пробел
 }
 
-# Функция для отправки нажатий напрямую через Windows API
+# Функция для отправки события клавиши через Windows API
 def send_key(vk_code, is_down):
     scan_code = ctypes.windll.user32.MapVirtualKeyW(vk_code, MAPVK_VK_TO_VSC)
-    flags = 0
-    if not is_down:
-        flags |= KEYEVENTF_KEYUP
+    flags = KEYEVENTF_KEYUP if not is_down else 0
     ctypes.windll.user32.keybd_event(vk_code, scan_code, flags, 0)
 
 def find_arduino_port():
-    """Умное определение порта через сравнение до/после подключения"""
+    """Умное определение порта Arduino через сравнение подключений"""
     print("\n🔍 Поиск порта Arduino через сравнение устройств")
-    
-    # Получаем список портов ДО любых действий
+
+    # Исходный список портов
     ports_initial = [p.device for p in serial.tools.list_ports.comports()]
-    print(f"   • Найдено устройств изначально: {len(ports_initial)}")
+    print(f"   • Изначально найдено устройств: {len(ports_initial)}")
     
-    # Проверяем, подключена ли Arduino
     if ports_initial:
-        print("\n⚠️ Arduino обнаружена в списке устройств:")
+        print("\n⚠️ Обнаружены устройства:")
         for i, port in enumerate(ports_initial, 1):
             print(f"   {i}. {port}")
         
-        print("\n1. Отключите Arduino от компьютера")
-        input("   → Нажмите Enter, когда отключите...")
-        
-        # Ждём стабилизации
+        print("\n1. Отключите Arduino и нажмите Enter...")
+        input("   → ")
         time.sleep(2)
+
         ports_after_disconnect = [p.device for p in serial.tools.list_ports.comports()]
-        
-        # Определяем, какое устройство исчезло
-        disconnected = list(set(ports_initial) - set(ports_after_disconnect))
-        
-        if disconnected:
-            print(f"\n✅ Устройство отключено: {disconnected[0]}")
-            print("2. Подключите Arduino к компьютеру")
-            input("   → Нажмите Enter, когда подключите...")
-            
-            # Ждём стабилизации
-            time.sleep(2)
-            ports_after_connect = [p.device for p in serial.tools.list_ports.comports()]
-            
-            # Определяем, какое устройство появилось
-            connected = list(set(ports_after_connect) - set(ports_after_disconnect))
-            
-            if connected:
-                print(f"\n✅ Arduino найдена на порту: {connected[0]}")
-                return connected[0]
+        disconnected = set(ports_initial) - set(ports_after_disconnect)
+
+        print("\n2. Подключите Arduino и нажмите Enter...")
+        input("   → ")
+        time.sleep(2)
+
+        ports_after_connect = [p.device for p in serial.tools.list_ports.comports()]
+        connected = set(ports_after_connect) - set(ports_after_disconnect)
+
+        if connected:
+            print(f"\n✅ Arduino найдена на порту: {list(connected)[0]}")
+            return list(connected)[0]
+        else:
+            print("\n❌ Не удалось обнаружить новое устройство после подключения.")
     
-    # Альтернативный режим поиска
+    # Альтернативный режим: до/после подключения
     print("\n🔄 Альтернативный режим поиска...")
-    print("1. Отключите Arduino от компьютера (если подключена)")
-    input("   → Нажмите Enter, когда отключите...")
-    
-    # Список портов ДО подключения
+    print("1. Убедитесь, что Arduino отключена, и нажмите Enter...")
+    input("   → ")
+    time.sleep(1)
     ports_before = [p.device for p in serial.tools.list_ports.comports()]
-    print(f"   • Устройств без Arduino: {len(ports_before)}")
-    
-    print("\n2. Подключите Arduino к компьютеру")
-    input("   → Нажмите Enter, когда подключите...")
-    
-    # Список портов ПОСЛЕ подключения
+
+    print("\n2. Подключите Arduino и нажмите Enter...")
+    input("   → ")
     time.sleep(2)
     ports_after = [p.device for p in serial.tools.list_ports.comports()]
-    
-    # Находим новый порт
-    new_ports = list(set(ports_after) - set(ports_before))
-    
+
+    new_ports = set(ports_after) - set(ports_before)
     if not new_ports:
-        print("\n❌ Arduino не обнаружена!")
+        print("\n❌ Arduino не обнаружена.")
         return None
-        
     elif len(new_ports) == 1:
-        print(f"\n✅ Arduino найдена на порту: {new_ports[0]}")
-        return new_ports[0]
-        
+        port = list(new_ports)[0]
+        print(f"\n✅ Arduino найдена: {port}")
+        return port
     else:
         print("\n⚠️ Найдено несколько новых устройств:")
-        for i, port in enumerate(new_ports, 1):
-            print(f"   {i}. {port}")
-        
-        print("\nДоступные порты:")
-        for i, port in enumerate(new_ports, 1):
-            print(f"   {i}. {port}")
-            
+        for i, p in enumerate(new_ports, 1):
+            print(f"   {i}. {p}")
         while True:
             try:
-                choice = int(input("Введите номер порта Arduino: "))
-                if 1 <= choice <= len(new_ports):
-                    print(f"\n✅ Выбран порт: {new_ports[choice-1]}")
-                    return new_ports[choice-1]
+                choice = int(input("Выберите номер порта: "))
+                port_list = list(new_ports)
+                if 1 <= choice <= len(port_list):
+                    return port_list[choice - 1]
                 else:
-                    print(f"❌ Нет порта с номером {choice}")
+                    print("❌ Неверный номер.")
             except ValueError:
-                print("❌ Введите число")
+                print("❌ Введите число.")
 
 def main():
     print("="*50)
-    print("🎮 Сверхбыстрый джойстик для Arduino (Windows)")
+    print("🎮 Джойстик Arduino → Клавиатура (Windows)")
+    print("   Режим: точное управление зажатием клавиш")
     print("="*50)
-    
-    # Поиск порта
+
     port = find_arduino_port()
     if not port:
-        print("❌ Не удалось определить порт Arduino")
+        print("❌ Не удалось найти порт Arduino.")
         return
-    
+
     # Подключение к Arduino
     try:
         ser = serial.Serial(port, BAUD_RATE, timeout=0.1)
-        print(f"\n🔌 Подключено к {port}")
-        time.sleep(2)  # Даем время Arduino перезагрузиться
+        print(f"\n🔌 Подключено к {port} @ {BAUD_RATE} baud")
+        time.sleep(2)  # Время на перезагрузку Arduino
     except Exception as e:
-        print(f"❌ Не удалось открыть порт: {e}")
+        print(f"❌ Ошибка подключения: {e}")
         return
-    
-    print("\n🎮 Запуск с минимальной задержкой...")
-    print("Нажмите Ctrl+C для выхода\n")
-    
-    # Текущее состояние клавиш
-    active_keys = set()
-    
+
+    print("\n🎮 Готов к работе. Используйте джойстик.")
+    print("ℹ️  Центр — ничего не нажато. Отклонение — движение.")
+    print("🛑 Нажмите Ctrl+C для выхода.\n")
+
+    active_keys = set()  # Множество зажатых клавиш
+
     try:
         while True:
-            # Чтение данных без блокировки
+            # Чтение строки из Arduino
             if ser.in_waiting > 0:
-                line = ser.readline().decode('utf-8', errors='ignore').strip()
+                try:
+                    line = ser.readline().decode('utf-8', errors='ignore').strip()
+                except:
+                    line = ""
                 
-                # Формируем целевые клавиши
-                target_keys = set()
-                if line != "." and len(line) > 0:
+                # Парсим активные клавиши
+                current_keys = set()
+                if line and line != ".":
                     for char in line.lower():
                         if char in VK_CODES:
-                            target_keys.add(char)
-            
+                            current_keys.add(char)
             else:
-                target_keys = set()
-            
-            # Отпускаем ненужные клавиши
-            for key in list(active_keys):
-                if key not in target_keys:
-                    send_key(VK_CODES[key], False)
-                    active_keys.remove(key)
-            
-            # Нажимаем новые клавиши
-            for key in target_keys:
-                if key not in active_keys:
-                    send_key(VK_CODES[key], True)
-                    active_keys.add(key)
-            
-            # КРИТИЧЕСКИ ВАЖНО: минимальная задержка
+                current_keys = set()
+
+            # === УПРАВЛЕНИЕ ЗАЖАТИЕМ ===
+            # 1. Отпустить клавиши, которые больше не активны
+            for key in active_keys - current_keys:
+                send_key(VK_CODES[key], False)
+                print(f"📤 Отпущено: '{key.upper()}'")  # Лог (по желанию можно убрать)
+
+            # 2. Нажать новые клавиши
+            for key in current_keys - active_keys:
+                send_key(VK_CODES[key], True)
+                print(f"📥 Нажато: '{key.upper()}'")  # Лог (по желанию)
+
+            # Обновляем состояние
+            active_keys = current_keys
+
+            # Минимальная задержка для стабильности
             time.sleep(KEY_DELAY)
-    
+
     except KeyboardInterrupt:
-        print("\n🛑 Остановлено пользователем.")
-    
+        print("\n\n🛑 Остановлено пользователем.")
+
+    except Exception as e:
+        print(f"\n❌ Ошибка в основном цикле: {e}")
+
     finally:
-        # Отпускаем все клавиши
+        # Гарантированно отпускаем все клавиши
         for key in active_keys:
             send_key(VK_CODES[key], False)
         print("🔌 Все клавиши отпущены.")
+        try:
+            ser.close()
+        except:
+            pass
+        print("🔌 Последовательный порт закрыт.")
 
 if __name__ == "__main__":
     main()

@@ -8,7 +8,8 @@ from joystick_manager import JoystickManager
 
 # --- НАСТРОЙКИ ---
 SERIAL_PORT = '/dev/serial/by-id/usb-1a86_USB2.0-Serial-if00-port0'
-BAUD_RATE = 115200
+BAUD_RATE = 500000
+
 KEY_DELAY = 0.020  # Высокая частота обработки
 # -----------------
 
@@ -17,8 +18,6 @@ joymgr = JoystickManager()
 joymgr.find_arduino_port()
 
 SERIAL_PORT = joymgr.port
-
-print(joymgr.port)
 
 # Создаём виртуальную клавиатуру
 cap = {
@@ -48,7 +47,7 @@ except Exception as e:
     ui.close()
     exit(1)
 
-print("🎮 Диагональное управление активировано. Нажми Ctrl+C для выхода...\n")
+print("🎮 Диагональное управление активировано. Нажмите Ctrl+C для выхода...\n")
 
 # Коды клавиш
 key_map = {

@@ -52,11 +52,19 @@ print("🎮 Диагональное управление активирован
 # Коды клавиш
 key_map = {
     'w': e.KEY_W,
-    'a': e.KEY_A,
     's': e.KEY_S,
+    'a': e.KEY_A,
     'd': e.KEY_D,
-    ' ': e.KEY_SPACE
+    'SPACE': e.KEY_SPACE
 }
+
+keys = [
+    'w', 
+    's', 
+    'a', 
+    'd', 
+    'SPACE'
+    ]
 
 # Текущее состояние: какие клавиши нажаты
 active_keys = set()
@@ -84,15 +92,15 @@ def release_key(key_char):
 try:
     while True:
         if ser.in_waiting > 0:
-            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            byte_data = ser.read(1)[0]
 
-            # Формируем набор целевых клавиш (например, "wa" → ['w', 'a'])
+            #print(f"Получен байт: {byte_data} (бинарно: {bin(byte_data)})")
+
             target_keys = set()
-            if line != "." and len(line) > 0:
-                for char in line.lower():
-                    if char in key_map:
-                        target_keys.add(char)
-
+            for i, key in enumerate(keys):
+                if byte_data & (1 << i):
+                    #print(f"Бит {i} включён нажата кнопка '{key}'")
+                    target_keys.add(key)
         else:
             target_keys = set()
 
